@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shirt Operation Dashboard</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        /* Add your CSS styling here */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+        .container {
+            width: 80%;
+            margin: auto;
+            padding: 20px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .header img {
+            width: 100px;
+            height: auto;
+        }
+        #dataTable {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        #dataTable th, #dataTable td {
+            padding: 10px;
+            border: 1px solid #ccc;
+            text-align: center;
+        }
+        #dataTable th {
+            background-color: #f2f2f2;
+        }
+        button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <img src="https://media-exp1.licdn.com/dms/image/C4D0BAQEVycySNP4tcg/company-logo_200_200/0/1605605250350?e=2159024400&v=beta&t=QO27YUpaujujF9nFOgoqJrRfrb9gzHNqMyun-TOeSpE" alt="Company Logo">
+        <h1 id="page-title">Shirt Operations</h1>
+    </div>
+
+    <!-- Section Dropdown -->
+    <div>
+        <label for="sectionDropdown">Select Section: </label>
+        <select id="sectionDropdown" onchange="filterOperations()">
+            <option value="">All Sections</option>
+        </select>
+    </div>
+
+    <!-- Shirt Operations Page -->
+    <div id="shirt-operations" class="content">
+        <table id="dataTable">
+            <thead>
+                <tr>
+                    <th>S. No.</th>
+                    <th>Section</th>
+                    <th>Operation</th>
+                    <th>Automation Level</th>
+                    <th>SMV</th>
+                    <th>Grade</th>
+                    <th>Output</th>
+                    <th>M/c Required @ 90%</th>
+                    <th>No. of Operators</th>
+                    <th>Wages</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+        <button onclick="saveData()">Save Data</button>
+    </div>
+</div>
+
+<script>
+    const salaryMapping = {
+        "A*": 10991,
+        "A+": 10660,
+        "A": 10660,
+        "B": 10398,
+        "C": 10398,
+        "D": 10131,
+        "E": 10131
+    };
+
+    let sheetData = [];
+    let uniqueData = {};
+
+    // Fetch data for the Shirt Operations
+    function fetchData() {
+        const apiUrl = "https://script.google.com/macros/s/AKfycbx000BkphDpUgSs8iKBjb7YNTqlarZwiUCib4vsLsHGjjEKrJYZba_VN9IK6T3sF4oZ/exec";
+        fetch(apiUrl)
+            .then(response => response.json())
+            .then(data => {
+                sheetData = data;
+                processUniqueData();
+                populateSectionDropdown();
+                populateTable(); // Ensure table populates initially
+            })
+            .catch(error => {
+                console.error("Error fetching data:", error);
+                alert("Error fetching data. Please try again later.");
+            });
+    }
+
+    // Process unique data
+    function processUniqueData() {
+        uniqueData = {};
+        sheetData.forEach(row => {
+            let key = row["Section"] + "-" + row["Operation"];
+            if (!uniqueData[key]) {
+                uniqueData[key] = {
+                    section: row["Section"],
+                    operation: row["Operation"],
+                    automationLevels: {},
+                };
+            }
+            uniqueData[key].automationLevels[row["Automation Level"]] = {
+                smv: row["SMV"],
+                grade: row["Grade"],
+                numOperators: row["No. of Operator"]
+            };
+        });
+    }
+
+    // Populate Section Dropdown
+    function populateSectionDropdown() {
+        const sectionDropdown = document.getElementById("sectionDropdown");
+        const sections = [...new Set(sheetData.map(item => item["Section"]))];
+
+        sectionDropdown.innerHTML = '<option value="">All Sections</option>';
+        sections.forEach(section => {
+            const option = document.createElement("option");
+            option.value = section;
+            option.textContent = section;
+            sectionDropdown.appendChild(option);
+        });
+    }
+
+    // Filter operations based on selected section
+    function filterOperations() {
+        const selectedSection = document.getElementById("sectionDropdown").value;
+        populateTable(selectedSection);
+    }
+
+    // Populate Table
+    function populateTable(selectedSection = "") {
+        const tableBody = document.querySelector("#dataTable tbody");
+        tableBody.innerHTML = "";
+        let index = 1;
+        Object.keys(uniqueData).forEach(key => {
+            let row = uniqueData[key];
+            if (selectedSection && row.section !== selectedSection) return;
+
+            let dropdown = `<select onchange="updateRow(${index}, this.value)">
+                                <option value="">Select</option>
+                                ${Object.keys(row.automationLevels).map(level => `<option value="${level}">${level}</option>`).join("")}
+                            </select>`;
+            let newRow = `<tr id="row-${index}">
+                            <td>${index}</td>
+                            <td>${row.section}</td>
+                            <td>${row.operation}</td>
+                            <td>${dropdown}</td>
+                            <td id="smv-${index}">-</td>
+                            <td id="grade-${index}">-</td>
+                            <td id="output-${index}">-</td>
+                            <td id="mch-${index}">-</td>
+                            <td id="numOperators-${index}">-</td>
+                            <td id="wages-${index}">-</td>
+                          </tr>`;
+            tableBody.innerHTML += newRow;
+            index++;
+        });
+    }
+
+    // Update Row
+    function updateRow(index, selectedLevel) {
+        if (!selectedLevel) return;
+        const rowElement = document.getElementById(`row-${index}`);
+        const section = rowElement.children[1].textContent;
+        const operation = rowElement.children[2].textContent;
+        const key = section + "-" + operation;
+
+        if (uniqueData[key] && uniqueData[key].automationLevels[selectedLevel]) {
+            const details = uniqueData[key].automationLevels[selectedLevel];
+            document.getElementById(`smv-${index}`).textContent = details.smv;
+            document.getElementById(`grade-${index}`).textContent = details.grade;
+            document.getElementById(`numOperators-${index}`).textContent = details.numOperators;
+
+            const outputRequired = 225;
+            const smv = parseFloat(details.smv);
+            const mcRequired = outputRequired / ((60 / smv) * 0.9);
+
+            document.getElementById(`output-${index}`).textContent = outputRequired;
+            document.getElementById(`mch-${index}`).textContent = mcRequired.toFixed(2);
+
+            const grade = details.grade;
+            const wagePerOperator = salaryMapping[grade] || 0;
+            const wages = wagePerOperator * details.numOperators;
+
+            document.getElementById(`wages-${index}`).textContent = wages;
+        }
+    }
+
+    // Save Data
+    function saveData() {
+        const tableRows = document.querySelectorAll("#dataTable tbody tr");
+        const dataToSave = Array.from(tableRows).map(row => ({
+            "S.no.": row.children[0].textContent,
+            "Section": row.children[1].textContent,
+            "Operation": row.children[2].textContent,
+            "Automation Level": row.children[3].querySelector("select").value,
+            "SMV": row.children[4].textContent,
+            "Grade": row.children[5].textContent,
+            "Output required": row.children[6].textContent,
+            "M/c required @ 90%": row.children[7].textContent,
+            "No. of Operator": row.children[8].textContent,
+            "Wages": row.children[9].textContent,
+        }));
+
+        const apiUrl = "https://script.google.com/macros/s/AKfycbysMOnn3sW3QEpMAAuQmqAr_tmWLRQ2YUdre-WLiLuafiruvzAccEwsC45hGEWmk6IU1g/exec";
+        fetch(apiUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ data: dataToSave }),
+        })
+        .then(response => response.json())
+        .then(() => alert("Data saved successfully!"))
+        .catch(error => {
+            console.error("Error saving data:", error);
+            alert("There was an error saving the data. Please try again.");
+        });
+    }
+
+    fetchData(); // Fetch data on page load
+</script>
+
+</body>
+</html>
